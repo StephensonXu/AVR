@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
 using System.Net.Mime;
+using System.Runtime.Remoting.Channels;
 using System.Text;
 using System.Threading;
 
@@ -22,6 +23,7 @@ namespace AVR_3
 
         static SerialPort com = new SerialPort("COM2", 9600, Parity.Even, 8, StopBits.One);//串口
         static int serial_time = 30;//serial interval time
+        static int cpu_time = 100;//cpu time
 
         static GPIO gpio = new GPIO(1);//gpio-1
         static Boolean SetIoH = false;//io-flag   
@@ -130,16 +132,12 @@ namespace AVR_3
             while (true)
             {
                 if (Trans_error_count >= tansError) Trans_Error();
-                if (buffer[0] == 0x01) Car_LowSpeed();
-                if (buffer[0] == 0x02) Car_HighSpeed();
-                if (buffer[0] == 0x03) Car_LowTurn();
-                if (buffer[0] == 0x04) Car_HighTurn();
+                if (buffer[0] == 0x01 || buffer[0] == 0x02 || buffer[0] == 0x03 ||buffer[0] == 0x04) Car_run();
                 if (buffer[0] == 0x05) Car_Demo();
                 if (buffer[0] == 0x0e && buffer[1] == 0xff && buffer[2] == 0xff && buffer[3] == 0xff) Car_EmergencyStop();
                 if (buffer[0] == 0x40) Openvideo();
                 if (buffer[0] == 0x41) Closevideo();
-                if (buffer[0] == 0x11) yao_1();
-                if (buffer[0] == 0x12) yao_2();
+                if (buffer[0] == 0x11) yao();
             }
         }
 
@@ -148,15 +146,12 @@ namespace AVR_3
         {
         }
 
-        #region Trans_Error
-        /// <summary>
-        /// 通信断,程序退出
-        /// </summary>
+
+        // 通信断,程序退出
         static void Trans_Error()
         {
             try
             {
-                #region 如果抱闸打开，则写入急停，并关闭通讯，这样子由于没有抱闸关闭，导致就程序一开始启动时会可能暴动下，后面则无
                 for (byte add = 0x01; add < 0x05; add++)
                 {
                     try
@@ -167,13 +162,10 @@ namespace AVR_3
                     {
                         mainLog.WriteLog("串口写入失败", e.ToString());
                     }
-                    #region 帧间隔30ms
-                    Thread.Sleep(30);
-                    #endregion
+                    Thread.Sleep(serial_time);
                 }
                 Thread.Sleep(1000);                    
                 com.Close();
-                #endregion
                 if (videotrans == true)
                 {
                     myVideo.CloseVideo();
@@ -186,21 +178,20 @@ namespace AVR_3
                 mainLog.WriteLog("通信中断","强制退出失败");
             }          
         }
-        #endregion
-        #region Car_LowSpeed
-        /// <summary>
-        /// 低速运行
-        /// </summary>
-        static void Car_LowSpeed()
+
+
+        // 车运行
+        static void Car_run()
         {
-            #region 速度表示
+
             float[] temp = new float[4];//四个电机的速度
             int v, vdif, v_f;//车速度和差速
-            #endregion
+            int coefficient = 0;
             while (true)
             {
-                
-                #region 速度获取
+                if (Trans_error_count >= tansError) Trans_Error();//通信失常
+                if (buffer[0] != 0x01 || buffer[0] != 0x02 || buffer[0] != 0x03 || buffer[0] != 0x04) break;//跳出循环判断
+
                 v = buffer[2];
                 if (v >= 99)
                 {
@@ -211,262 +202,52 @@ namespace AVR_3
                     v = 0;
                 }
                 vdif = buffer[3] * v / 90;
-                #endregion
-                #region 通信失常
-                if (Trans_error_count >= tansError) Trans_Error();
-                #endregion
-                #region 跳出循环判断
-                if (buffer[0] != 0x01) break;
-                #endregion
-                #region 获取速度
-                switch (buffer[1])
+                switch (buffer[0] * 10 + buffer[1])//10,11,12,13,14,20,21,22,23,24,30,32,34,40,42,44
                 {
-                    case 0:
+                    case 10:case 20:case 30:case 40:
                         temp[0] = 0;
                         temp[1] = 0;
                         temp[2] = 0;
                         temp[3] = 0;
                         break;
-                    case 1:
+                    case 11:case 21:
                         temp[0] = v - vdif;
                         temp[1] = v - vdif;
-                        temp[2] = v;
-                        temp[3] = v;
+                        temp[2] = v * (-1);
+                        temp[3] = v * (-1);
                         break;
-                    case 2:
+                    case 12:case 22:
                         temp[0] = v;
                         temp[1] = v;
-                        temp[2] = v - vdif;
-                        temp[3] = v - vdif;
+                        temp[2] = (v - vdif) * (-1);
+                        temp[3] = (v - vdif) * (-1);
                         break;
-                    case 3:
+                    case 13: case 23:
                         v_f = v * 8 / 10;
                         temp[0] = -v_f;
                         temp[1] = -v_f;
-                        temp[2] = -v_f + vdif;
-                        temp[3] = -v_f + vdif;
+                        temp[2] = (-v_f + vdif) * (-1);
+                        temp[3] = (-v_f + vdif) * (-1);
                         break;
-                    case 4:
+                    case 14:case 24:
                         v_f = v * 8 / 10;
                         temp[0] = -v_f + vdif;
                         temp[1] = -v_f + vdif;
-                        temp[2] = -v_f;
-                        temp[3] = -v_f;
+                        temp[2] = -v_f * (-1);
+                        temp[3] = -v_f * (-1);
                         break;
-                    default:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                }
-                #endregion
-                #region 写入速度
-                if (buffer[1] != 255)
-                {
-                    
-                    #region 写入速度
-                    for (byte add = 0x01; add < 0x05; add++)
-                    {
-                        #region 校正电机正反方向
-                        float a = 0;
-                        if (add == 0x01 || add == 0x02)
-                        {
-                            a = 1;
-                        }
-                        else
-                        {
-                            a = -1;
-                        }
-                        #endregion
-                        try
-                        {
-                            com.Write(new CarControl().CarSpeedWrite(add, a*temp[add - 1]*20), 0, 8);
-                        }
-                        catch (Exception e)
-                        {
-                            mainLog.WriteLog("串口写入失败", e.ToString());
-                        }
-
-                        #region 帧间隔30ms
-                        Thread.Sleep(30);
-                        #endregion
-                    }
-                    #endregion
-                    
-                }
-                #endregion                
-                #region 延时降低CPU负担                
-                Thread.Sleep(100);
-                #endregion
-            }
-        }
-        #endregion
-        #region Car_HighSpeed
-        /// <summary>
-        /// 低速运行
-        /// </summary>
-        static void Car_HighSpeed()
-        {
-            #region 速度表示
-            float[] temp = new float[4];//四个电机的速度
-            int v, vdif, v_f;//车速度和差速
-            #endregion
-            while (true)
-            {
-
-                #region 速度获取
-                v = buffer[2];
-                if (v >= 99)
-                {
-                    v = 99;
-                }
-                if (v <= 2)
-                {
-                    v = 0;
-                }
-                vdif = buffer[3] * v / 90;
-                #endregion
-                #region 通信失常
-                if (Trans_error_count >= tansError) Trans_Error();
-                #endregion
-                #region 跳出循环判断
-                if (buffer[0] != 0x02) break;
-                #endregion
-                #region 获取速度
-                switch (buffer[1])
-                {
-                    case 0:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                    case 1:
-                        temp[0] = v - vdif;
-                        temp[1] = v - vdif;
+                    case 32:case 42:
+                        temp[0] = v;
+                        temp[1] = v;
                         temp[2] = v;
                         temp[3] = v;
                         break;
-                    case 2:
-                        temp[0] = v;
-                        temp[1] = v;
-                        temp[2] = v - vdif;
-                        temp[3] = v - vdif;
-                        break;
-                    case 3:
-                        v_f = v * 8 / 10;
-                        temp[0] = -v_f;
-                        temp[1] = -v_f;
-                        temp[2] = -v_f + vdif;
-                        temp[3] = -v_f + vdif;
-                        break;
-                    case 4:
-                        v_f = v * 8 / 10;
-                        temp[0] = -v_f + vdif;
-                        temp[1] = -v_f + vdif;
-                        temp[2] = -v_f;
-                        temp[3] = -v_f;
-                        break;
-                    default:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                }
-                #endregion
-                #region 写入速度
-                if (buffer[1] != 255)
-                {
-
-                    #region 写入速度
-                    for (byte add = 0x01; add < 0x05; add++)
-                    {
-                        #region 校正电机正反方向
-                        float a = 0;
-                        if (add == 0x01 || add == 0x02)
-                        {
-                            a = 1;
-                        }
-                        if (add == 0x03 || add == 0x04)
-                        {
-                            a = -1;
-                        }
-                        #endregion
-                        try
-                        {
-                            com.Write(new CarControl().CarSpeedWrite(add, a * temp[add - 1] * 40), 0, 8);
-                        }
-                        catch (Exception e)
-                        {
-                            mainLog.WriteLog("串口写入失败", e.ToString());
-                        }
-
-                        #region 帧间隔30ms
-                        Thread.Sleep(30);
-                        #endregion
-                    }
-                    #endregion
-
-                }
-                #endregion
-                #region 延时降低CPU负担
-                Thread.Sleep(100);
-                #endregion
-            }
-        }
-        #endregion
-        #region Car_LowTurn
-        /// <summary>
-        /// 低速运行
-        /// </summary>
-        static void Car_LowTurn()
-        {
-            #region 速度表示
-            float[] temp = new float[4];//四个电机的速度
-            int v, vdif, v_f;//车速度和差速
-            #endregion
-            while (true)
-            {
-                #region 速度获取
-                v = buffer[2];
-                if (v >= 99)
-                {
-                    v = 99;
-                }
-                if (v <= 2)
-                {
-                    v = 0;
-                }
-                #endregion
-                #region 通信失常
-                if (Trans_error_count >= tansError) Trans_Error();
-                #endregion
-                #region 跳出循环判断
-                if (buffer[0] != 0x03) break;
-                #endregion
-                #region 获取速度
-                switch (buffer[1])
-                {
-                    case 0:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                    case 2:
-                        temp[0] = v;
-                        temp[1] = v;
+                    case 34:case 44:
+                        temp[0] = -v;
+                        temp[1] = -v;
                         temp[2] = -v;
                         temp[3] = -v;
                         break;
-                    case 4:
-                        temp[0] = -v;
-                        temp[1] = -v;
-                        temp[2] = v;
-                        temp[3] = v;
-                        break;
                     default:
                         temp[0] = 0;
                         temp[1] = 0;
@@ -474,164 +255,47 @@ namespace AVR_3
                         temp[3] = 0;
                         break;
                 }
-                #endregion
-                #region 写入速度
+                switch (buffer[0])
+                {
+                    case 1:case 3:
+                        coefficient = 20;
+                        break;
+                    case 2:case 4:
+                        coefficient = 40;
+                        break;
+                }
+                //写入速度
                 if (buffer[1] != 255)
                 {
-
-                    #region 写入速度
                     for (byte add = 0x01; add < 0x05; add++)
                     {
-                        #region 校正电机正反方向
-                        float a = 0;
-                        if (add == 0x01 || add == 0x02)
-                        {
-                            a = 1;
-                        }
-                        if (add == 0x03 || add == 0x04)
-                        {
-                            a = -1;
-                        }
-                        #endregion
                         try
                         {
-                            com.Write(new CarControl().CarSpeedWrite(add, a * temp[add - 1] * 20), 0, 8);
+                            com.Write(new CarControl().CarSpeedWrite(add, coefficient*temp[add - 1]), 0, 8);
                         }
                         catch (Exception e)
                         {
                             mainLog.WriteLog("串口写入失败", e.ToString());
                         }
-
-                        #region 帧间隔30ms
-                        Thread.Sleep(30);
-                        #endregion
+                        Thread.Sleep(serial_time);
                     }
-                    #endregion
-
-                }
-                #endregion
-                #region 延时降低CPU负担
-                Thread.Sleep(100);
-                #endregion
+                }              
+              
+                Thread.Sleep(cpu_time);//延时降低CPU负担
             }
         }
-        #endregion
-        #region Car_HighTurn
-        /// <summary>
-        /// 低速运行
-        /// </summary>
-        static void Car_HighTurn()
-        {
-            #region 速度表示
-            float[] temp = new float[4];//四个电机的速度
-            int v, vdif, v_f;//车速度和差速
-            #endregion
-            while (true)
-            {
-                #region 速度获取
-                v = buffer[2];
-                if (v >= 99)
-                {
-                    v = 99;
-                }
-                if (v <= 2)
-                {
-                    v = 0;
-                }
-                #endregion
-                #region 通信失常
-                if (Trans_error_count >= tansError) Trans_Error();
-                #endregion
-                #region 跳出循环判断
-                if (buffer[0] != 0x04) break;
-                #endregion
-                #region 获取速度
-                switch (buffer[1])
-                {
-                    case 0:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                    case 2:
-                        temp[0] = v;
-                        temp[1] = v;
-                        temp[2] = -v;
-                        temp[3] = -v;
-                        break;
-                    case 4:
-                        temp[0] = -v;
-                        temp[1] = -v;
-                        temp[2] = v;
-                        temp[3] = v;
-                        break;
-                    default:
-                        temp[0] = 0;
-                        temp[1] = 0;
-                        temp[2] = 0;
-                        temp[3] = 0;
-                        break;
-                }
-                #endregion
-                #region 写入速度
-                if (buffer[1] != 255)
-                {
 
-                    #region 写入速度
-                    for (byte add = 0x01; add < 0x05; add++)
-                    {
-                        #region 校正电机正反方向
-                        float a = 0;
-                        if (add == 0x01 || add == 0x02)
-                        {
-                            a = 1;
-                        }
-                        if (add == 0x03 || add == 0x04)
-                        {
-                            a = -1;
-                        }
-                        #endregion
-                        try
-                        {
-                            com.Write(new CarControl().CarSpeedWrite(add, a * temp[add - 1] * 40), 0, 8);
-                        }
-                        catch (Exception e)
-                        {
-                            mainLog.WriteLog("串口写入失败", e.ToString());
-                        }
 
-                        #region 帧间隔30ms
-                        Thread.Sleep(30);
-                        #endregion
-                    }
-                    #endregion
-
-                }
-                #endregion
-                #region 延时降低CPU负担
-                Thread.Sleep(100);
-                #endregion
-            }
-        }
-        #endregion
-        #region Car_Demo
-        /// <summary>
-        /// 车演示程序
-        /// </summary>
+        // 车演示程序
         static void Car_Demo()
         {
         }
-        #endregion
-        #region Car_EmergencyStop
-        /// <summary>
-        /// 车急停
-        /// </summary>
+
+        // 车急停
         static void Car_EmergencyStop()
         {
             if (emergyStop == false)
             {
-                #region 紧急停止
                 for (byte add = 0x01; add < 0x05; add++)
                 {
                     try
@@ -642,18 +306,13 @@ namespace AVR_3
                     {
                         mainLog.WriteLog("串口写入失败", e.ToString());
                     }
-                    #region 帧间隔30ms
-                    Thread.Sleep(30);
-                    #endregion
+                    Thread.Sleep(serial_time);
                 }
-                #endregion
-                #region 延时
                 Thread.Sleep(500);
-                #endregion
-                #region 关闭抱闸
-                gpio.SetIoLow();
-                SetIoH = false;
-                #endregion 
+
+                gpio.SetIoLow();//关闭抱闸
+                SetIoH = false; 
+
                 emergyStop = true;
             }
             else
@@ -663,106 +322,12 @@ namespace AVR_3
             }
             
         }
-        #endregion
-        #region yao_1,pwm -1000-1000,设为最大为500
-        private static void yao_1()
+        // yao
+        private static void yao()
         {
-            #region 速度表示
-            int v;//腰速度
-            #endregion
-            while (true)
-            {
-                #region 速度获取
-                v = buffer[2];                
-                if (v >= 99)
-                {
-                    v = 99;
-                }
-                if (v <= 2)
-                {
-                    v = 0;
-                }
-                v = (buffer[1] == 0x02) ? v : v*(-1);
-                #endregion
-                #region 通信失常
-                if (Trans_error_count >= 20) Trans_Error();
-                #endregion
-                #region 跳出循环判断
-                if (buffer[0] != 0x11) break;
-                #endregion
-                #region 写入速度                    
-                try
-                {
-                    com.Write(new YaoControl().yaoSpeedWrite(0x05, v * 5), 0, 8);
-                }
-                catch (Exception e)
-                {
-                    mainLog.WriteLog("串口写入失败", e.ToString());
-                }
-                #endregion
-                #region 延时降低CPU负担
-                Thread.Sleep(100);
-                #endregion
-            }
+            ;
         }
-        #endregion
-        #region yao_2,pwm -1000-1000,设为最大为500
-        private static void yao_2()
-        {
-            #region 速度表示
-            int v;//腰速度
-            #endregion
-
-            while (true)
-            {
-                #region 速度获取
-
-                v = buffer[2];
-                if (v >= 99)
-                {
-                    v = 99;
-                }
-                if (v <= 2)
-                {
-                    v = 0;
-                }
-                v = (buffer[1] == 0x02) ? v : v*(-1);
-
-                #endregion
-
-                #region 通信失常
-
-                if (Trans_error_count >= 20) Trans_Error();
-
-                #endregion
-
-                #region 跳出循环判断
-
-                if (buffer[0] != 0x11) break;
-
-                #endregion
-
-                #region 写入速度                    
-
-                try
-                {
-                    com.Write(new YaoControl().yaoSpeedWrite(0x06, v*5), 0, 8);
-                }
-                catch (Exception e)
-                {
-                    mainLog.WriteLog("串口写入失败", e.ToString());
-                }
-
-                #endregion
-
-                #region 延时降低CPU负担
-
-                Thread.Sleep(100);
-
-                #endregion
-            }
-        }
-        #endregion
+       
         #region 开摄像头
         static void Openvideo()
         {
