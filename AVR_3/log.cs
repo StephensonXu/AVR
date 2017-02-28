@@ -1,15 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace AVR_3
 {
-    class log
+    internal class log
     {
-        private string LogPath; //= "C://log";  
-        private string LogName; // = "/event.log";  
+        private readonly string LogName; // = "/event.log";  
+        private readonly string LogPath; //= "C://log";  
 
         public log(string path, string name)
         {
@@ -19,9 +17,9 @@ namespace AVR_3
 
         public void ClearLog()
         {
-            DirectoryInfo d = Directory.CreateDirectory(LogPath);
-            FileStream fs = new FileStream(LogPath + LogName, System.IO.FileMode.Create);
-            StreamWriter sw = new StreamWriter(fs, System.Text.Encoding.Default);
+            var d = Directory.CreateDirectory(LogPath);
+            var fs = new FileStream(LogPath + LogName, FileMode.Create);
+            var sw = new StreamWriter(fs, Encoding.Default);
             sw.Close();
             fs.Close();
         }
@@ -30,10 +28,10 @@ namespace AVR_3
         {
             try
             {
-                DirectoryInfo d = Directory.CreateDirectory(LogPath);
-                FileStream fs = new FileStream(LogPath + LogName, System.IO.FileMode.Append);
-                StreamWriter sw = new StreamWriter(fs, System.Text.Encoding.Default);
-                sw.WriteLine(DateTime.Now.ToString() + "\t" + log1 + "\t" + log2);
+                var d = Directory.CreateDirectory(LogPath);
+                var fs = new FileStream(LogPath + LogName, FileMode.Append);
+                var sw = new StreamWriter(fs, Encoding.Default);
+                sw.WriteLine(DateTime.Now + "\t" + log1 + "\t" + log2);
                 sw.Close();
                 fs.Close();
             }

@@ -1,49 +1,46 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Net.Mime;
-using System.Runtime.Remoting.Channels;
-using System.Text;
 using System.Threading;
+using System.Timers;
+using Timer = System.Timers.Timer;
 
 namespace AVR_3
 {
-    class Program
+    internal class Program
     {
-        static log mainLog = new log("D://log", "/main.log");//log
+        private static readonly log mainLog = new log("D://log", "/main.log"); //log
 
-        static TcpServer tcpServer = new TcpServer(9966, 10);//tcpsever
-        static bool Transmit = false;
-        static byte[] buffer = new byte[1024];//tcp-data
-        static byte[] startbuffer = new byte[1024];//start-data
-        static byte[] send = { 0xff, 0xff, 0xff, 0xff, 0xff, 0x06 };//send-data
-        static int tansError = 10;//max error tans count
-        static int Trans_error_count = 0;//Trans_error_count
+        private static readonly TcpServer tcpServer = new TcpServer(9966, 10); //tcpsever
+        private static bool Transmit;
+        private static byte[] buffer = new byte[1024]; //tcp-data
+        private static byte[] startbuffer = new byte[1024]; //start-data
+        private static readonly byte[] send = {0xff, 0xff, 0xff, 0xff, 0xff, 0x06}; //send-data
+        private static readonly int tansError = 10; //max error tans count
+        private static int Trans_error_count; //Trans_error_count
 
-        static SerialPort com = new SerialPort("COM2", 9600, Parity.Even, 8, StopBits.One);//串口
-        static int serial_time = 30;//serial interval time
-        static int cpu_time = 100;//cpu time
+        private static SerialPort com = new SerialPort("COM2", 9600, Parity.Even, 8, StopBits.One); //串口
+        private static readonly int serial_time = 30; //serial interval time
+        private static readonly int cpu_time = 100; //cpu time
 
-        static GPIO gpio = new GPIO(1);//gpio-1
-        static Boolean SetIoH = false;//io-flag   
-        
-        static Video myVideo=new Video();
-        static bool videotrans = false;//video-flag
+        private static readonly GPIO gpio = new GPIO(1); //gpio-1
+        private static bool SetIoH; //io-flag   
 
-        private static bool emergyStop = false;//emeergy-stop flag
+        private static readonly Video myVideo = new Video();
+        private static bool videotrans; //video-flag
 
-        static void Main(string[] args)
+        private static bool emergyStop; //emeergy-stop flag
+
+        private static void Main(string[] args)
         {
-            Main_init();//初始化
+            Main_init(); //初始化
             Console.WriteLine("主程序初始化成功");
-            mainLog.WriteLog("主程序初始化成功","");
+            mainLog.WriteLog("主程序初始化成功", "");
 
-            CarCtr();//car-process                     
+            CarCtr(); //car-process                     
         }
 
         //time_tick
-        static void time_tick(object source, System.Timers.ElapsedEventArgs e)
+        private static void time_tick(object source, ElapsedEventArgs e)
         {
             //第一次接收数据，置通信位
             startbuffer = tcpServer.Buffer;
@@ -62,7 +59,7 @@ namespace AVR_3
                 }
                 else
                 {
-                    Trans_error_count++;//异常记录
+                    Trans_error_count++; //异常记录
                     mainLog.WriteLog("异常计数", Trans_error_count.ToString());
                     Console.WriteLine(Trans_error_count.ToString());
                     if (Trans_error_count < tansError)
@@ -72,14 +69,15 @@ namespace AVR_3
                 }
                 tcpServer.SendMessage(send);
             }
-        }   
+        }
+
         // 串口数据接收
-        static void com_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        private static void com_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             try
             {
-                int n = com.BytesToRead;
-                byte[] buf = new byte[n];
+                var n = com.BytesToRead;
+                var buf = new byte[n];
                 com.Read(buf, 0, n);
             }
             catch (Exception ex)
@@ -87,13 +85,14 @@ namespace AVR_3
                 mainLog.WriteLog("串口接收数据失败", ex.ToString());
             }
         }
-        static void Main_init()
+
+        private static void Main_init()
         {
             //打开服务器
             tcpServer.Start();
             //注册串口接收方法
             com.NewLine = "\r\n";
-            com.DataReceived += com_DataReceived;            
+            com.DataReceived += com_DataReceived;
             //打开io口及继电器
             gpio.InitIo();
             gpio.SetIoHigh();
@@ -112,9 +111,9 @@ namespace AVR_3
                 }
             }
             //启动timer
-            System.Timers.Timer dogTimer = new System.Timers.Timer(200);
+            var dogTimer = new Timer(200);
             dogTimer.Elapsed += time_tick; //到达时间的时候执行事件；   
-            dogTimer.AutoReset = true;   //设置是执行一次（false）还是一直执行(true)； 
+            dogTimer.AutoReset = true; //设置是执行一次（false）还是一直执行(true)； 
             try
             {
                 dogTimer.Enabled = true; //是否执行System.Timers.Timer.Elapsed事件；  
@@ -123,18 +122,19 @@ namespace AVR_3
             {
                 mainLog.WriteLog("看门狗使能失败", e.ToString());
             }
-        }     
+        }
 
         // 车控总程序
-        static void CarCtr()
+        private static void CarCtr()
         {
             Init();
             while (true)
             {
                 if (Trans_error_count >= tansError) Trans_Error();
-                if (buffer[0] == 0x01 || buffer[0] == 0x02 || buffer[0] == 0x03 ||buffer[0] == 0x04) Car_run();
+                if (buffer[0] == 0x01 || buffer[0] == 0x02 || buffer[0] == 0x03 || buffer[0] == 0x04) Car_run();
                 if (buffer[0] == 0x05) Car_Demo();
-                if (buffer[0] == 0x0e && buffer[1] == 0xff && buffer[2] == 0xff && buffer[3] == 0xff) Car_EmergencyStop();
+                if (buffer[0] == 0x0e && buffer[1] == 0xff && buffer[2] == 0xff && buffer[3] == 0xff)
+                    Car_EmergencyStop();
                 if (buffer[0] == 0x40) Openvideo();
                 if (buffer[0] == 0x41) Closevideo();
                 if (buffer[0] == 0x11) yao();
@@ -142,13 +142,13 @@ namespace AVR_3
         }
 
         // 车初始化程序
-        static void Init()
+        private static void Init()
         {
         }
 
 
         // 通信断,程序退出
-        static void Trans_Error()
+        private static void Trans_Error()
         {
             try
             {
@@ -164,33 +164,32 @@ namespace AVR_3
                     }
                     Thread.Sleep(serial_time);
                 }
-                Thread.Sleep(1000);                    
+                Thread.Sleep(1000);
                 com.Close();
-                if (videotrans == true)
+                if (videotrans)
                 {
                     myVideo.CloseVideo();
                 }
-                mainLog.WriteLog("通信中断", "强制退出");               
+                mainLog.WriteLog("通信中断", "强制退出");
                 Environment.Exit(-1);
             }
             catch (Exception e)
             {
-                mainLog.WriteLog("通信中断","强制退出失败");
-            }          
+                mainLog.WriteLog("通信中断", "强制退出失败");
+            }
         }
 
 
         // 车运行
-        static void Car_run()
+        private static void Car_run()
         {
-
-            float[] temp = new float[4];//四个电机的速度
-            int v, vdif, v_f;//车速度和差速
-            int coefficient = 0;
+            var temp = new float[4]; //四个电机的速度
+            int v, vdif, v_f; //车速度和差速
+            var coefficient = 0;
             while (true)
             {
-                if (Trans_error_count >= tansError) Trans_Error();//通信失常
-                if (buffer[0] != 0x01 || buffer[0] != 0x02 || buffer[0] != 0x03 || buffer[0] != 0x04) break;//跳出循环判断
+                if (Trans_error_count >= tansError) Trans_Error(); //通信失常
+                if (buffer[0] != 0x01 || buffer[0] != 0x02 || buffer[0] != 0x03 || buffer[0] != 0x04) break; //跳出循环判断
 
                 v = buffer[2];
                 if (v >= 99)
@@ -201,48 +200,57 @@ namespace AVR_3
                 {
                     v = 0;
                 }
-                vdif = buffer[3] * v / 90;
-                switch (buffer[0] * 10 + buffer[1])//10,11,12,13,14,20,21,22,23,24,30,32,34,40,42,44
+                vdif = buffer[3]*v/90;
+                switch (buffer[0]*10 + buffer[1]) //10,11,12,13,14,20,21,22,23,24,30,32,34,40,42,44
                 {
-                    case 10:case 20:case 30:case 40:
+                    case 10:
+                    case 20:
+                    case 30:
+                    case 40:
                         temp[0] = 0;
                         temp[1] = 0;
                         temp[2] = 0;
                         temp[3] = 0;
                         break;
-                    case 11:case 21:
+                    case 11:
+                    case 21:
                         temp[0] = v - vdif;
                         temp[1] = v - vdif;
-                        temp[2] = v * (-1);
-                        temp[3] = v * (-1);
+                        temp[2] = v*-1;
+                        temp[3] = v*-1;
                         break;
-                    case 12:case 22:
+                    case 12:
+                    case 22:
                         temp[0] = v;
                         temp[1] = v;
-                        temp[2] = (v - vdif) * (-1);
-                        temp[3] = (v - vdif) * (-1);
+                        temp[2] = (v - vdif)*-1;
+                        temp[3] = (v - vdif)*-1;
                         break;
-                    case 13: case 23:
-                        v_f = v * 8 / 10;
+                    case 13:
+                    case 23:
+                        v_f = v*8/10;
                         temp[0] = -v_f;
                         temp[1] = -v_f;
-                        temp[2] = (-v_f + vdif) * (-1);
-                        temp[3] = (-v_f + vdif) * (-1);
+                        temp[2] = (-v_f + vdif)*-1;
+                        temp[3] = (-v_f + vdif)*-1;
                         break;
-                    case 14:case 24:
-                        v_f = v * 8 / 10;
+                    case 14:
+                    case 24:
+                        v_f = v*8/10;
                         temp[0] = -v_f + vdif;
                         temp[1] = -v_f + vdif;
-                        temp[2] = -v_f * (-1);
-                        temp[3] = -v_f * (-1);
+                        temp[2] = -v_f*-1;
+                        temp[3] = -v_f*-1;
                         break;
-                    case 32:case 42:
+                    case 32:
+                    case 42:
                         temp[0] = v;
                         temp[1] = v;
                         temp[2] = v;
                         temp[3] = v;
                         break;
-                    case 34:case 44:
+                    case 34:
+                    case 44:
                         temp[0] = -v;
                         temp[1] = -v;
                         temp[2] = -v;
@@ -257,10 +265,12 @@ namespace AVR_3
                 }
                 switch (buffer[0])
                 {
-                    case 1:case 3:
+                    case 1:
+                    case 3:
                         coefficient = 20;
                         break;
-                    case 2:case 4:
+                    case 2:
+                    case 4:
                         coefficient = 40;
                         break;
                 }
@@ -279,20 +289,20 @@ namespace AVR_3
                         }
                         Thread.Sleep(serial_time);
                     }
-                }              
-              
-                Thread.Sleep(cpu_time);//延时降低CPU负担
+                }
+
+                Thread.Sleep(cpu_time); //延时降低CPU负担
             }
         }
 
 
         // 车演示程序
-        static void Car_Demo()
+        private static void Car_Demo()
         {
         }
 
         // 车急停
-        static void Car_EmergencyStop()
+        private static void Car_EmergencyStop()
         {
             if (emergyStop == false)
             {
@@ -310,8 +320,8 @@ namespace AVR_3
                 }
                 Thread.Sleep(500);
 
-                gpio.SetIoLow();//关闭抱闸
-                SetIoH = false; 
+                gpio.SetIoLow(); //关闭抱闸
+                SetIoH = false;
 
                 emergyStop = true;
             }
@@ -320,34 +330,38 @@ namespace AVR_3
                 gpio.SetIoHigh();
                 emergyStop = false;
             }
-            
         }
+
         // yao
         private static void yao()
         {
             ;
         }
-       
+
         #region 开摄像头
-        static void Openvideo()
+
+        private static void Openvideo()
         {
             if (videotrans == false)
             {
                 myVideo.OpenVideo();
                 videotrans = true;
-            }            
+            }
         }
+
         #endregion
+
         #region 关摄像头
-        static void Closevideo()
+
+        private static void Closevideo()
         {
-            if (videotrans == true)
+            if (videotrans)
             {
                 myVideo.CloseVideo();
                 videotrans = false;
-            }            
+            }
         }
-        #endregion                
 
+        #endregion
     }
 }
