@@ -79,6 +79,10 @@ namespace AVR_3
                 var n = com.BytesToRead;
                 var buf = new byte[n];
                 com.Read(buf, 0, n);
+                if (buf[1] == 0x03)
+                {
+                    mainLog.WriteLog(buf[0].ToString(),buffer[3].ToString()+" "+buffer[4].ToString());
+                }
             }
             catch (Exception ex)
             {
@@ -93,6 +97,7 @@ namespace AVR_3
             //注册串口接收方法
             com.NewLine = "\r\n";
             com.DataReceived += com_DataReceived;
+            
             //打开io口及继电器
             gpio.InitIo();
             gpio.SetIoHigh();
@@ -189,7 +194,7 @@ namespace AVR_3
             while (true)
             {
                 if (Trans_error_count >= tansError) Trans_Error(); //通信失常
-                if (buffer[0] != 0x01 || buffer[0] != 0x02 || buffer[0] != 0x03 || buffer[0] != 0x04) break; //跳出循环判断
+                if (buffer[0] != 0x01 && buffer[0] != 0x02 && buffer[0] != 0x03 && buffer[0] != 0x04) break; //跳出循环判断
 
                 v = buffer[2];
                 if (v >= 99)
@@ -290,8 +295,23 @@ namespace AVR_3
                         Thread.Sleep(serial_time);
                     }
                 }
-
                 Thread.Sleep(cpu_time); //延时降低CPU负担
+                //读取电流
+                if (buffer[1] != 255)
+                {
+                    for (byte add = 0x01; add < 0x05; add++)
+                    {
+                        try
+                        {
+                            com.Write(new CarControl().CurrentRead(add), 0, 8);
+                        }
+                        catch (Exception e)
+                        {
+                            mainLog.WriteLog("串口写入失败", e.ToString());
+                        }
+                        Thread.Sleep(serial_time);
+                    }
+                }
             }
         }
 

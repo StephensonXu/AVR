@@ -75,6 +75,29 @@
 
         #endregion
 
+        #region 车读取电流
+
+        /// <summary>
+        ///     车读取速度
+        /// </summary>
+        /// <param name="address"></param>
+        /// <returns></returns>
+        public byte[] CurrentRead(byte address)
+        {
+            var velocityReceive = new byte[8];
+            velocityReceive[0] = address;
+            velocityReceive[1] = 0x03;
+            velocityReceive[2] = 0x00;
+            velocityReceive[3] = 0x21;
+            velocityReceive[4] = 0x00;
+            velocityReceive[5] = 0x01;
+            velocityReceive[6] = CalCrc16_CRCHi(velocityReceive, 6);
+            velocityReceive[7] = CalCrc16_CRCLo(velocityReceive, 6);
+            return velocityReceive;
+        }
+
+        #endregion
+
         #region 车读取位置
 
         /// <summary>
