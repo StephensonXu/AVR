@@ -140,8 +140,7 @@ namespace AVR_3
                 if (buffer[0] == 0x05) Car_Demo();
                 if (buffer[0] == 0x0e && buffer[1] == 0xff && buffer[2] == 0xff && buffer[3] == 0xff)
                     Car_EmergencyStop();
-                if (buffer[0] == 0x40) Openvideo();
-                if (buffer[0] == 0x41) Closevideo();
+                if (buffer[0] == 0x40 || buffer[0] == 0x41) Video_run();
                 if (buffer[0] == 0x11) yao();
             }
         }
@@ -358,30 +357,20 @@ namespace AVR_3
             ;
         }
 
-        #region 开摄像头
-
-        private static void Openvideo()
+        //摄像头操作
+        private static void Video_run()
         {
             if (videotrans == false)
             {
                 myVideo.OpenVideo();
                 videotrans = true;
             }
-        }
-
-        #endregion
-
-        #region 关摄像头
-
-        private static void Closevideo()
-        {
-            if (videotrans)
+            else
             {
                 myVideo.CloseVideo();
                 videotrans = false;
             }
         }
 
-        #endregion
     }
 }
