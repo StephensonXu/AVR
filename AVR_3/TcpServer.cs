@@ -227,7 +227,7 @@ namespace AVR_3
         /// <param name="obj"></param>
         public void ReceiveClient(object obj)
         {
-            var mClientSocket = (Socket) obj;
+            var mClientSocket = (Socket)obj;
             //循环标识位
             var flag = true;
             while (flag)
@@ -427,7 +427,7 @@ namespace AVR_3
             {
                 foreach (var s in _mClientSockets)
                 {
-                    if (ipEnd.Equals((IPEndPoint) s.RemoteEndPoint))
+                    if (ipEnd.Equals((IPEndPoint)s.RemoteEndPoint))
                     {
                         s.Send(Encoding.UTF8.GetBytes(msg));
                     }
@@ -453,7 +453,7 @@ namespace AVR_3
             {
                 foreach (var s in _mClientSockets)
                 {
-                    if (ipEnd.Equals((IPEndPoint) s.RemoteEndPoint))
+                    if (ipEnd.Equals((IPEndPoint)s.RemoteEndPoint))
                     {
                         s.Send(msg);
                     }
@@ -468,3 +468,19 @@ namespace AVR_3
         #endregion
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

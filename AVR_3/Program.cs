@@ -9,6 +9,7 @@ namespace AVR_3
     internal class Program
     {
         private static readonly log mainLog = new log("D://log", "/main.log"); //log
+        private static readonly log currentLog = new log("D://log", "/current.log"); //log
 
         private static readonly TcpServer tcpServer = new TcpServer(9966, 10); //tcpsever
         private static bool Transmit;
@@ -76,13 +77,10 @@ namespace AVR_3
         {
             try
             {
-                var n = com.BytesToRead;
+                var n = com.BytesToRead;//进行数据分段
                 var buf = new byte[n];
                 com.Read(buf, 0, n);
-                if (buf[1] == 0x03)
-                {
-                    mainLog.WriteLog(buf[0].ToString(),buffer[3].ToString()+" "+buffer[4].ToString());
-                }
+                cutData_Write(n, buf);
             }
             catch (Exception ex)
             {
@@ -383,5 +381,23 @@ namespace AVR_3
         }
 
         #endregion
+
+        private static void cutData_Write(int length, byte[] buf){
+            int count=1;
+            while (length >= 7)
+            {
+                if (buf[count] == 0x03)
+                {
+                    currentLog.WriteLog(buf[count - 1].ToString()+"电机", (buf[count + 2] * 2.56 + buf[count + 3]*0.01).ToString()+"安");
+                    count += 7;
+                    length -= 7;
+                }
+                else
+                {
+                        count += 8;
+                        length -= 8;
+                }
+            }
+        }
     }
 }
