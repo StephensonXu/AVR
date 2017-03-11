@@ -17,11 +17,18 @@ namespace AVR_3
 
         public void ClearLog()
         {
-            var d = Directory.CreateDirectory(LogPath);
-            var fs = new FileStream(LogPath + LogName, FileMode.Create);
-            var sw = new StreamWriter(fs, Encoding.Default);
-            sw.Close();
-            fs.Close();
+            try
+            {
+                var d = Directory.CreateDirectory(LogPath);
+                var fs = new FileStream(LogPath + LogName, FileMode.Create);
+                var sw = new StreamWriter(fs, Encoding.Default);
+                sw.Close();
+                fs.Close();
+            }
+            catch
+            {
+                //nothing to do
+            }
         }
 
         public void WriteLog(string log1, string log2)

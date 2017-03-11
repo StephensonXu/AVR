@@ -35,7 +35,7 @@ namespace AVR_3
 
         #region tcpLog
 
-        private readonly log tcpLog = new log("D://log", "/tcp.log");
+        private readonly log tcpLog = new log(Program.FilePath, Program.Tcplog);
 
         #endregion
 
@@ -236,6 +236,8 @@ namespace AVR_3
                 {
                     //获取数据长度                    
                     receiveLength = mClientSocket.Receive(buffer);
+                    //记录下获取信息长度
+                    tcpLog.WriteLog("长度",receiveLength.ToString());
                 }
                 catch (Exception e)
                 {

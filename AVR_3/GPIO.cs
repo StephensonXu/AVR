@@ -6,9 +6,7 @@ namespace AVR_3
     internal class GPIO
     {
         #region GpioLog
-
-        private readonly log gpioLog = new log("D://log", "/gpio.log");
-
+        private readonly log gpioLog = new log(Program.FilePath, Program.Gpiolog);
         #endregion
 
         #region constructor

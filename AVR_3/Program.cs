@@ -1,43 +1,57 @@
-﻿using System;
+﻿#define DEBUG
+#define RECORD
+
+using System;
+using System.Drawing;
+using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using System.Timers;
+using System.Web.Script.Serialization;
+using System.Windows.Forms;
 using Timer = System.Timers.Timer;
 
 namespace AVR_3
 {
+    
     internal class Program
     {
-        private static readonly log mainLog = new log("D://log", "/main.log"); //log
-        private static readonly log currentLog = new log("D://log", "/current.log"); //log
-
-        private static readonly TcpServer tcpServer = new TcpServer(9966, 10); //tcpsever
+        public static String FilePath = "D://log";
+        public static String Tcplog = "/tcp.log";
+        public static String Gpiolog = "/gpio.log";
+        private static int tansError = 10; //max error tans count
+        private static int serial_time = 30; //serial interval time
+        private static int cpu_time = 100; //cpu time
+        private static int timerInterval = 200;
+        private static int velocityMax = 20;
+        private static log mainLog; //log
+        private static TcpServer tcpServer; //tcpsever 
+        private static GPIO gpio; //gpio-1
+        private static SerialPort com; //串口
+#if DEBUG
+        private static log currentLog; //log
+        private static log temp1Log; //log
+        private static log temp2Log; //log
+        private static log temp3Log; //log
+        private static log temp4Log; //log
+#endif             
         private static bool Transmit;
         private static byte[] buffer = new byte[1024]; //tcp-data
         private static byte[] startbuffer = new byte[1024]; //start-data
         private static readonly byte[] send = {0xff, 0xff, 0xff, 0xff, 0xff, 0x06}; //send-data
-        private static readonly int tansError = 10; //max error tans count
         private static int Trans_error_count; //Trans_error_count
-
-        private static SerialPort com = new SerialPort("COM2", 9600, Parity.Even, 8, StopBits.One); //串口
-        private static readonly int serial_time = 30; //serial interval time
-        private static readonly int cpu_time = 100; //cpu time
-
-        private static readonly GPIO gpio = new GPIO(1); //gpio-1
         private static bool SetIoH; //io-flag   
-
         private static readonly Video myVideo = new Video();
         private static bool videotrans; //video-flag
-
         private static bool emergyStop; //emeergy-stop flag
 
         private static void Main(string[] args)
         {
+            JSON_Init();
             Main_init(); //初始化
             Console.WriteLine("主程序初始化成功");
             mainLog.WriteLog("主程序初始化成功", "");
-
-            CarCtr(); //car-process                     
+            CarCtr(); //car-process   
         }
 
         //time_tick
@@ -53,7 +67,9 @@ namespace AVR_3
             if (Transmit)
             {
                 buffer = tcpServer.Buffer;
-                //mainLog.WriteLog("缓冲数据", buffer[0].ToString() + " " + buffer[1].ToString() + " " + buffer[2].ToString() + " " + buffer[3].ToString() + " " + buffer[4].ToString() + " " + buffer[5].ToString());                
+#if RECORD
+                mainLog.WriteLog("缓冲数据", buffer[0].ToString() + " " + buffer[1].ToString() + " " + buffer[2].ToString() + " " + buffer[3].ToString() + " " + buffer[4].ToString() + " " + buffer[5].ToString());                
+#endif
                 if (buffer[4] == 0 && buffer[5] == 0x06)
                 {
                     send[4] = 1;
@@ -80,7 +96,9 @@ namespace AVR_3
                 var n = com.BytesToRead;//进行数据分段
                 var buf = new byte[n];
                 com.Read(buf, 0, n);
+#if DEBUG
                 cutData_Write(n, buf);
+#endif
             }
             catch (Exception ex)
             {
@@ -88,14 +106,51 @@ namespace AVR_3
             }
         }
 
-        private static void Main_init()
+        private static void JSON_Init()
         {
+            //json
+            try
+            {
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                StreamReader sr = File.OpenText("./Set.json"); // \\或者@"\"或者/或者./
+                string set = sr.ReadToEnd();
+                sr.Close();
+                var p = serializer.Deserialize<JSON>(set);
+                FilePath = p.FilePath;
+                mainLog = new log(p.FilePath, p.MainLogName);
+                tcpServer=new TcpServer(p.TcpSeverPort,p.TcpSeverNum);
+                gpio=new GPIO(p.GpioGroup);
+                com = new SerialPort(p.SerialPortName, 9600, Parity.Even, 8, StopBits.One);
+                Tcplog = p.TcpLogName;
+                Gpiolog = p.GpioLogName;
+                tansError = p.TransErrorCount;
+                serial_time = p.SerialTime;
+                cpu_time = p.CpuLoopTime;
+                timerInterval = p.TimerInterval;
+                velocityMax = p.VelocityCoeffient;
+#if DEBUG
+                currentLog=new log(p.FilePath,p.CurrentLogName);
+                temp1Log=new log(p.FilePath,p.Temp1Logname);
+                temp2Log=new log(p.FilePath,p.Temp2Logname);
+                temp3Log=new log(p.FilePath,p.Temp3Logname);
+                temp4Log=new log(p.FilePath,p.Temp4Logname);
+#endif
+                Console.WriteLine("初始化对象成功");
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                Console.WriteLine("初始化对象失败");
+            }
+            
+        }
+        private static void Main_init()
+        {       
             //打开服务器
             tcpServer.Start();
             //注册串口接收方法
             com.NewLine = "\r\n";
             com.DataReceived += com_DataReceived;
-            
             //打开io口及继电器
             gpio.InitIo();
             gpio.SetIoHigh();
@@ -114,7 +169,7 @@ namespace AVR_3
                 }
             }
             //启动timer
-            var dogTimer = new Timer(200);
+            var dogTimer = new Timer(timerInterval);
             dogTimer.Elapsed += time_tick; //到达时间的时候执行事件；   
             dogTimer.AutoReset = true; //设置是执行一次（false）还是一直执行(true)； 
             try
@@ -270,11 +325,11 @@ namespace AVR_3
                 {
                     case 1:
                     case 3:
-                        coefficient = 20;
+                        coefficient = velocityMax;
                         break;
                     case 2:
                     case 4:
-                        coefficient = 40;
+                        coefficient = 2*velocityMax;
                         break;
                 }
                 //写入速度
@@ -389,13 +444,33 @@ namespace AVR_3
                 if (buf[count] == 0x03)
                 {
                     currentLog.WriteLog(buf[count - 1].ToString()+"电机", (buf[count + 2] * 2.56 + buf[count + 3]*0.01).ToString()+"安");
+                    switch (buf[count-1])
+                    {
+                        case 0x01:
+                            temp1Log.ClearLog();
+                            temp1Log.WriteLog(buf[count - 1].ToString(), (buf[count + 2] * 2.56 + buf[count + 3] * 0.01).ToString());
+                            break;
+                        case 0x02:
+                            temp2Log.ClearLog();
+                            temp2Log.WriteLog(buf[count - 1].ToString(), (buf[count + 2] * 2.56 + buf[count + 3] * 0.01).ToString());
+                            break;
+                        case 0x03:
+                            temp3Log.ClearLog();
+                            temp3Log.WriteLog(buf[count - 1].ToString(), (buf[count + 2] * 2.56 + buf[count + 3] * 0.01).ToString());
+                            break;
+                        case 0x04:
+                            temp4Log.ClearLog();
+                            temp4Log.WriteLog(buf[count - 1].ToString(), (buf[count + 2] * 2.56 + buf[count + 3] * 0.01).ToString());
+                            break;
+
+                    }       
                     count += 7;
                     length -= 7;
                 }
                 else
                 {
-                        count += 8;
-                        length -= 8;
+                    count += 8;
+                    length -= 8;
                 }
             }
         }
