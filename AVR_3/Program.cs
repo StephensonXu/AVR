@@ -1,5 +1,7 @@
 ﻿#define DEBUG
 #define RECORD
+#define TEST
+#undef TEST
 
 using System;
 using System.Drawing;
@@ -120,7 +122,7 @@ namespace AVR_3
                 mainLog = new log(p.FilePath, p.MainLogName);
                 tcpServer=new TcpServer(p.TcpSeverPort,p.TcpSeverNum);
                 gpio=new GPIO(p.GpioGroup);
-                com = new SerialPort(p.SerialPortName, 9600, Parity.Even, 8, StopBits.One);
+                com = new SerialPort(p.SerialPortName, p.BaudRate, Parity.Even, 8, StopBits.One);
                 Tcplog = p.TcpLogName;
                 Gpiolog = p.GpioLogName;
                 tansError = p.TransErrorCount;
@@ -155,19 +157,54 @@ namespace AVR_3
             gpio.InitIo();
             gpio.SetIoHigh();
             SetIoH = true;
+#if TEST
+            com.WriteBufferSize = 80;//必须偶数对齐
             //打开串口
             if (!com.IsOpen)
             {
                 try
                 {
                     com.Open();
+                    
+                    Console.WriteLine("打开串口成功");
                 }
                 catch (Exception e)
                 {
                     com = new SerialPort();
-                    mainLog.WriteLog("打开串口失败", e.ToString());
+                    Console.WriteLine("打开串口失败" + e.ToString());
                 }
             }
+            Console.WriteLine(com.WriteBufferSize);
+            
+            //com.WriteTimeout = 5;
+            for (byte add = 0x01; add < 0x05; add++)
+            {
+                try
+                {
+                    com.Write(CarControl.CarSpeedWrite(add, 20), (add - 1) * 8, 8);
+                    Thread.Sleep(30);
+
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("串口写入失败 "+e.ToString());
+                }
+            }
+
+            if (com.IsOpen)
+            {
+                try
+                {
+                    com.Close();
+                    Console.WriteLine("关闭串口成功");
+                }
+                catch (Exception e)
+                {
+                    com = new SerialPort();
+                    Console.WriteLine("关闭串口失败" + e.ToString());
+                }
+            }
+#endif
             //启动timer
             var dogTimer = new Timer(timerInterval);
             dogTimer.Elapsed += time_tick; //到达时间的时候执行事件；   
@@ -214,7 +251,7 @@ namespace AVR_3
                 {
                     try
                     {
-                        com.Write(new CarControl().EmergeStop(add), 0, 8);
+                        com.Write(CarControl.EmergeStop(add), 0, 8);
                     }
                     catch (Exception e)
                     {
@@ -333,38 +370,34 @@ namespace AVR_3
                         break;
                 }
                 //写入速度
-                if (buffer[1] != 255)
+                for (byte add = 0x01; add < 0x05; add++)
                 {
-                    for (byte add = 0x01; add < 0x05; add++)
+                    try
                     {
-                        try
-                        {
-                            com.Write(new CarControl().CarSpeedWrite(add, coefficient*temp[add - 1]), 0, 8);
-                        }
-                        catch (Exception e)
-                        {
-                            mainLog.WriteLog("串口写入失败", e.ToString());
-                        }
-                        Thread.Sleep(serial_time);
+                        com.Write(CarControl.CarSpeedWrite(add, coefficient*temp[add - 1]), 0, 8);
                     }
+                    catch (Exception e)
+                    {
+                        mainLog.WriteLog("串口写入失败", e.ToString());
+                    }
+                    Thread.Sleep(serial_time);
                 }
-                Thread.Sleep(cpu_time); //延时降低CPU负担
+                Thread.Sleep(cpu_time); //延时降低CPU负担        
+#if DEBUG
                 //读取电流
-                if (buffer[1] != 255)
+                for (byte add = 0x01; add < 0x05; add++)
                 {
-                    for (byte add = 0x01; add < 0x05; add++)
+                    try
                     {
-                        try
-                        {
-                            com.Write(new CarControl().CurrentRead(add), 0, 8);
-                        }
-                        catch (Exception e)
-                        {
-                            mainLog.WriteLog("串口写入失败", e.ToString());
-                        }
-                        Thread.Sleep(serial_time);
+                        com.Write(CarControl.CurrentRead(add), 0, 8);
                     }
+                    catch (Exception e)
+                    {
+                        mainLog.WriteLog("串口写入失败", e.ToString());
+                    }
+                    Thread.Sleep(serial_time);
                 }
+#endif
             }
         }
 
@@ -383,7 +416,7 @@ namespace AVR_3
                 {
                     try
                     {
-                        com.Write(new CarControl().EmergeStop(add), 0, 8);
+                        com.Write(CarControl.EmergeStop(add), 0, 8);
                     }
                     catch (Exception e)
                     {

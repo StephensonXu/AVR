@@ -1,4 +1,8 @@
-﻿namespace AVR_3
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace ModbusGapTest
 {
     internal class CarControl
     {
@@ -174,7 +178,7 @@
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static byte[] BoudRateWrite(byte address, int BoudRate)
+        public static byte[] BoudRateWrite(byte address,int BoudRate)
         {
             var BoudRateSend = new byte[13];
             BoudRateSend[0] = address;
@@ -187,7 +191,7 @@
             BoudRateSend[7] = (byte)(BoudRate >> 24);
             BoudRateSend[8] = (byte)(BoudRate >> 16);
             BoudRateSend[9] = (byte)(BoudRate >> 8);
-            BoudRateSend[10] = (byte)BoudRate;
+            BoudRateSend[10] = (byte) BoudRate;
             BoudRateSend[11] = CalCrc16_CRCHi(BoudRateSend, 11);
             BoudRateSend[12] = CalCrc16_CRCLo(BoudRateSend, 11);
             return BoudRateSend;

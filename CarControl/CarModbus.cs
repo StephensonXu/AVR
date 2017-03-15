@@ -1,6 +1,11 @@
-﻿namespace AVR_3
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace CarControl
 {
-    internal class CarControl
+    public class CarModbus
     {
         #region 车写入速度
 

@@ -42,5 +42,7 @@ namespace AVR_3
         public int TimerInterval { get; set; }
 
         public int VelocityCoeffient { set; get; }
+
+        public int BaudRate { get; set; }
     }
 }
